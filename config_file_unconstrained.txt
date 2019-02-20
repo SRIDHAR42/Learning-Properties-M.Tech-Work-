@@ -1,0 +1,20 @@
+dataset_file = LDO_netlist_dump.csv
+m = 0.04
+k = 2
+tmax = 30
+tmin = 10
+
+start
+a 9 10
+b 11 12
+c 13 14
+d 15 16
+e 17 18
+f 19 20
+g 21 22
+h 23 24
+i 25 26
+j 27 28
+end
+
+target = "f > 9"
