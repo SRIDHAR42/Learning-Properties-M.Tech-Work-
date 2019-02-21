@@ -56,6 +56,10 @@ def read_from_config(config_file_name,signal_list,other_arguments):
 			m = line[1]
 			print 'm = ',m
 			continue
+		if( line[0] == 'trace_length'):
+			trace_length = line[1]
+			print 'm = ',trace_length
+			continue
 		if( line[0] == 'k'):
 			k = line[1]
 			print 'k = ',k
@@ -93,7 +97,13 @@ def read_from_config(config_file_name,signal_list,other_arguments):
 	other_arguments.append(tmax)
 	other_arguments.append(tmin)
 	other_arguments.append(target_predicate)
+	other_arguments.append(trace_length)
 
+def find_column(sig_name):
+	for entry in signal_list:
+		if entry[0] == sig_name :
+			#return in format column_value,column_time
+			return entry[2],entry[1]
 	
 def find_target_columns(target_pred,signal_list):
 	target_sig_name = target_pred.split()[0]
@@ -108,6 +118,7 @@ def find_target_columns(target_pred,signal_list):
 # the function will return an interval where the value of predicate is true
 def find_Interval(target_predicate):
 	col_val,col_time,target = target_predicate
+	print 'finding interval for ',target_predicate
 	f=open("test1",'w+')
 	f.truncate()
 	target_val=target.split()
@@ -188,7 +199,6 @@ def merge(interval1,interval2):
 # so you can directly find the gain. 
 def find_error_for_predicate(IntervalList,interval):
 	#interval = find_Interval(predicate)
-	print 'called find error'
 
 	interval_complement = complement_interval(interval)	
 	length_of_predicate_true = compute_interval_length(interval)
@@ -204,13 +214,13 @@ def find_error_for_predicate(IntervalList,interval):
 	predicate_and_target_true_length = compute_interval_length(interval_true)
 	predicate_and_target_false_length = compute_interval_length(interval_false)
 
-	print 'length p is true = ',length_of_predicate_true ,'\n length p and target true = ',predicate_and_target_true_length
-	print 'length p is false = ',length_of_predicate_false ,'\n length p and target false = ',predicate_and_target_false_length
+	# print 'length p is true = ',length_of_predicate_true ,'\n length p and target true = ',predicate_and_target_true_length
+	# print 'length p is false = ',length_of_predicate_false ,'\n length p and target false = ',predicate_and_target_false_length
 
-	if ( length_of_predicate_true >= predicate_and_target_true_length and length_of_predicate_false >= predicate_and_target_false_length):
-		print 'true length and false length are smaller than len of predicate'
-	else:
-		print 'something is fishy in length'
+	# if ( length_of_predicate_true >= predicate_and_target_true_length and length_of_predicate_false >= predicate_and_target_false_length):
+	# 	print 'true length and false length are smaller than len of predicate'
+	# else:
+	# 	print 'something is fishy in length'
 
 	mean_true = predicate_and_target_true_length / length_of_predicate_true
 	mean_false = predicate_and_target_false_length / length_of_predicate_false
@@ -219,11 +229,11 @@ def find_error_for_predicate(IntervalList,interval):
 	error_false = 2 * mean_false * (1- mean_false)
 	error_with_split = error_true + error_false
 
-	print 'mean true =',mean_true
-	print 'mean false = ',mean_false
-	print 'error true = ',error_true
-	print 'error false = ',error_false
-	print 'error wtih split = ',error_with_split
+	# print 'mean true =',mean_true
+	# print 'mean false = ',mean_false
+	# print 'error true = ',error_true
+	# print 'error false = ',error_false
+	# print 'error wtih split = ',error_with_split
 	
 	return error_with_split
 	
@@ -239,8 +249,6 @@ def find_error_for_predicate_target(interval):
 	mean = 0.0
 	for i in interval:
 		mean += i[1] - i[0]
-	
-	print 'numerator',mean,'denominator',initial_trace_length
 	mean = (mean)/initial_trace_length
 	print 'mean for target  = ',mean
 	error = 2 * mean * (1-mean)
@@ -277,9 +285,11 @@ def print_m_best_predicates():
 
 # this fnction returns the best value of predicate we can get..
 # with constant between min and max value of that variable
-def generate_predicate(i,IntervalList,predicateList,curr_error):
-	col_val= 2*i
-	col_time = 2*i -1
+def generate_predicate(i,IntervalList,curr_error):
+	
+	col_val,col_time = find_column(i)
+	# col_val= 2*i
+	# col_time = 2*i -1
 	min_val=1000
 	max_val=-1000
 	first_line=1
@@ -305,7 +315,9 @@ def generate_predicate(i,IntervalList,predicateList,curr_error):
 	# Tmin=10
 	T=Tmax
 	const_val = (max_val + min_val )/2
-	constraint = 'value >= '+str(const_val)
+	constraint = i + ' >= '+str(const_val)
+	# constraint = 'value >= '+str(const_val)
+
 	init_pred = (col_val,col_time,constraint)
 	init_pred_interval = find_Interval(init_pred)
 	print 'predicate : ', init_pred,' interval ',init_pred_interval
@@ -320,12 +332,12 @@ def generate_predicate(i,IntervalList,predicateList,curr_error):
 	store_m_best_predicates(gain,init_pred)
 	while(T>Tmin):
 		displacement = (T - Tmin) * 1.0/(Tmax - Tmin)
-		const_val_left = const_val - (const_val - min_val) * displacement
-		const_val_right = const_val + (max_val - const_val) * displacement
-		print '\n const val = ',const_val,'displacement = ',displacement,'left ',const_val_left,'right ',const_val_right
+		const_val_left = const_val - ((const_val - min_val) * displacement)
+		const_val_right = const_val + ((max_val - const_val) * displacement)
+		print '\n const val = ',const_val,'displacement = ',displacement,'const_val_left ',const_val_left,'const_val_right ',const_val_right
 		
 		#finding error for left val
-		constraint_left = 'value >= '+str(const_val_left)
+		constraint_left = i+ ' >= '+str(const_val_left)
 		init_pred_left = (col_val,col_time,constraint_left)
 		init_pred_interval_left = find_Interval(init_pred_left)
 		error_left = find_error_for_predicate(IntervalList,init_pred_interval_left)
@@ -333,7 +345,7 @@ def generate_predicate(i,IntervalList,predicateList,curr_error):
 		store_m_best_predicates(gain_left,init_pred_left)
 		
 		#finding error for right value
-		constraint_right = 'value >= '+str(const_val_right)
+		constraint_right = i + ' >= '+str(const_val_right)
 		init_pred_right = (col_val,col_time,constraint_right)
 		init_pred_interval_right = find_Interval(init_pred_right)
 		error_right= find_error_for_predicate(IntervalList,init_pred_interval_right)
@@ -395,7 +407,7 @@ def generate_predicate(i,IntervalList,predicateList,curr_error):
 
 
 
-def sa(IntervalList,predicateList,addedvariable,curr_error):
+def sa(IntervalList,processed_signal_variable,curr_error):
 	#local variables 
 	max_gain = 0.0
 	best_predicate = (-1,-1,'val >= 0')
@@ -403,15 +415,15 @@ def sa(IntervalList,predicateList,addedvariable,curr_error):
 	any_variable_to_add = 0
 
 	#for every signal variable check best predicate that could be generated.
-	for i in addedvariable:
+	for i in processed_signal_variable:
 		# print 'value of i is',if
-		if(addedvariable[i] == 0):
+		if(processed_signal_variable[i] == 0):
 			#here we are calling function that returns us best predicate for i th signal variable
-			gain,predicate,interval = generate_predicate(i,IntervalList,predicateList,curr_error)
+			gain,predicate,interval = generate_predicate(i,IntervalList,curr_error)
 			any_variable_to_add = 1
 			if(gain == 0):
-				print 'got gain 0 for ',i
-				addedvariable[i] = -1
+				print 'got gain 0 for signal variable ',i
+				processed_signal_variable[i] = -1
 			else:
 				if(gain > max_gain):
 					max_gain = gain
@@ -434,16 +446,9 @@ def sa(IntervalList,predicateList,addedvariable,curr_error):
 #main function hard coded the target signal value
 if __name__ == "__main__":
 		arguments = sys.argv
-		if(len(arguments) == 1):
-			print 'Missing  arguments please give arguments as follows'
-			print 'arguments:-  1)file name, 2)target column for time,3) target column for value 4) value of m(best predicates to remember)'
-
 		signal_list = []
 		other_arguments = []
 		#find interval arguments are column number of value,column number of time,predicate
-		addedvariable = {}	#the variables of signal that have been added as predicates
-		for i in range(1,15):
-			addedvariable[i]=0
 		config_file_name = 'config_file_unconstrained.txt'
 		print 'calling read_config'
 		read_from_config(config_file_name,signal_list,other_arguments)
@@ -455,43 +460,37 @@ if __name__ == "__main__":
 		# m=5
 		global csv_filemame
 		csv_filename = other_arguments[0]
-		
-		global trace_length
-		trace_length = float(other_arguments[1])
-
-		global initial_trace_length
-		initial_trace_length = trace_length
-
+		global m 
+		m = int(other_arguments[1])
 		k= int(other_arguments[2])
-
-		# target_sig_name = other_arguments[3]
-		#making Tmax and Tmin global so they can be accessed easily
 		global Tmax
 		global Tmin
-		
 		Tmax = int(other_arguments[3])
 		Tmin = int(other_arguments[4])
 		target_pred = other_arguments[5]
+		global trace_length
+		trace_length = float(other_arguments[6])
+		global initial_trace_length
+		initial_trace_length = trace_length
+
+		processed_signal_variable = {}
+		for i in signal_list:
+			processed_signal_variable[i[0]] = 0
+		
+		target_sig_name = target_pred.split()[0]
+		processed_signal_variable[target_sig_name] = 1
+		print processed_signal_variable
+
 		target_col,target_time = find_target_columns(target_pred,signal_list)
 		print 'target columns are',target_time,target_col
 		#m is declared global so it can be easily accessed throughout the code and w dont need to pass it.
-		global m 
-		m = trace_length
+		
 		global m_best_predicates
 		m_best_predicates = []
-		
-		
 
-		# print 'Please Enter the predicate'
-		# pred=raw_input()
-		# print 'Please Enter the value of max temperature'
-		# Tmax=int(raw_input())
-		# print 'Please Enter the value of min temperature'
-		# Tmin=int(raw_input())
 
 		
 
-		addedvariable[target_col/2] = 1
 		print '********************************************************'
 		print 'THE ARGUMENTS ARE AS FOLLOWS'
 		print '1. The file name of csv file is: ',csv_filename
@@ -510,12 +509,15 @@ if __name__ == "__main__":
 		predicateList.append(target_predicate)
 		curr_error = find_error_for_predicate_target(interval)
 		print 'target curr error is',curr_error,'\n'
-		
-		number_of_predicate = 5
+
+		number_of_predicate = 3
 		loop_counter = 1
+		
+
+
 		while(len(predicateList) < number_of_predicate):
 			print 'Calling simulated annealing for iteration',loop_counter
-			new_predicate,new_predicate_interval = sa(IntervalList,predicateList,addedvariable,curr_error)
+			new_predicate,new_predicate_interval = sa(IntervalList,processed_signal_variable,curr_error)
 			
 			#when there is no new pedicate
 			if(new_predicate[0] == -1):
@@ -523,8 +525,8 @@ if __name__ == "__main__":
 
 			print 'choosen predicate in iteration ',loop_counter,'is ',new_predicate
 			predicateList.append(new_predicate)
-			variable = new_predicate[0]/2
-			addedvariable[variable] = 1
+			sig_name = new_predicate[2].split()[0]
+			processed_signal_variable[sig_name] = 1
 			IntervalList[0]=merge(IntervalList[0],new_predicate_interval)
 			trace_length = compute_interval_length(IntervalList[0])
 			loop_counter+=1
