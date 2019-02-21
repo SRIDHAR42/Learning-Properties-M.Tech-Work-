@@ -27,7 +27,6 @@ def disp():
 predicateList=[]
 IntervalList=[]
 
-
 #reading from the config file
 def read_from_config(config_file_name,signal_list,other_arguments):
 	signal_read = 0
@@ -261,7 +260,6 @@ def store_m_best_predicates(gain,predicate):
 	if((gain,predicate) in m_best_predicates):
 		print 'predicate already added to priority list'
 		return
-	print 'new potential predicate'
 	index_new_predicate = 0
 	if(len(m_best_predicates) == 0):
 		m_best_predicates.append((gain,predicate))
@@ -293,7 +291,7 @@ def generate_predicate(i,IntervalList,curr_error):
 	min_val=1000
 	max_val=-1000
 	first_line=1
-	
+	store_error = {}
 	#the following block find the minimum and maximum value of the signal variable reading from the file.
 	with open(csv_filename,'rb') as csvfile:
 		filereader=csv.reader(csvfile,delimiter=',')
@@ -322,6 +320,7 @@ def generate_predicate(i,IntervalList,curr_error):
 	init_pred_interval = find_Interval(init_pred)
 	print 'predicate : ', init_pred,' interval ',init_pred_interval
 	error= find_error_for_predicate(IntervalList,init_pred_interval)
+	store_error[const_val] = error
 	# gain is how much the error is reduced
 	print 'error target = ',curr_error
 	print 'error after split',error
@@ -337,20 +336,31 @@ def generate_predicate(i,IntervalList,curr_error):
 		print '\n const val = ',const_val,'displacement = ',displacement,'const_val_left ',const_val_left,'const_val_right ',const_val_right
 		
 		#finding error for left val
-		constraint_left = i+ ' >= '+str(const_val_left)
-		init_pred_left = (col_val,col_time,constraint_left)
-		init_pred_interval_left = find_Interval(init_pred_left)
-		error_left = find_error_for_predicate(IntervalList,init_pred_interval_left)
-		gain_left = curr_error - error_left
-		store_m_best_predicates(gain_left,init_pred_left)
+		if const_val_left in store_error:
+			error_left = store_error[const_val_left]
+			gain_left = curr_error - error_left
+		else:
+			constraint_left = i+ ' >= '+str(const_val_left)
+			init_pred_left = (col_val,col_time,constraint_left)
+			init_pred_interval_left = find_Interval(init_pred_left)
+			error_left = find_error_for_predicate(IntervalList,init_pred_interval_left)
+			store_error[const_val_left] = error_left
+			gain_left = curr_error - error_left
+			store_m_best_predicates(gain_left,init_pred_left)
+		
 		
 		#finding error for right value
-		constraint_right = i + ' >= '+str(const_val_right)
-		init_pred_right = (col_val,col_time,constraint_right)
-		init_pred_interval_right = find_Interval(init_pred_right)
-		error_right= find_error_for_predicate(IntervalList,init_pred_interval_right)
-		gain_right = curr_error - error_right
-		store_m_best_predicates(gain_right,init_pred_right)
+		if const_val_right in store_error:
+			error_right = store_error[const_val_right]
+			gain_right = curr_error - error_right
+		else:
+			constraint_right = i + ' >= '+str(const_val_right)
+			init_pred_right = (col_val,col_time,constraint_right)
+			init_pred_interval_right = find_Interval(init_pred_right)
+			error_right= find_error_for_predicate(IntervalList,init_pred_interval_right)
+			store_error[const_val_right] = error_right
+			gain_right = curr_error - error_right
+			store_m_best_predicates(gain_right,init_pred_right)
 		
 		print 'gain = ',gain,'gain_left ',gain_left,'gain_right = ',gain_right
 		
@@ -382,7 +392,7 @@ def generate_predicate(i,IntervalList,curr_error):
 		#decrease temperature
 		T-=1
 
-	constraint = 'value >= '+str(const_val)
+	constraint =i + ' >= '+str(const_val)
 	init_pred = (col_val,col_time,constraint)
 	
 	return gain,init_pred,init_pred_interval
