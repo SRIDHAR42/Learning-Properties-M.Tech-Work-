@@ -34,15 +34,15 @@ def read_from_config(config_file_name,signal_list,other_arguments):
 	fptr=open(config_file_name,'r+')
 	for row in fptr:
 		#print 'row = ',row
-		if(signal_read == 1):
+		if(signal_read == 1 and row != '\n'):
 			line = row.strip().split(' ')
 			if(line[0] == 'end'):
 				signal_read = 0
 				continue
 			else:
 				sig_name = line[0]
-				sig_time = int(line[1])
-				sig_value = int(line[2])
+				sig_time = int(line[2])
+				sig_value = int(line[1])
 			temp_signal = []
 			temp_signal.append(sig_name)
 			temp_signal.append(sig_time)
@@ -57,7 +57,7 @@ def read_from_config(config_file_name,signal_list,other_arguments):
 			continue
 		if( line[0] == 'trace_length'):
 			trace_length = line[1]
-			print 'm = ',trace_length
+			print 'trace length = ',trace_length
 			continue
 		if( line[0] == 'k'):
 			k = line[1]
