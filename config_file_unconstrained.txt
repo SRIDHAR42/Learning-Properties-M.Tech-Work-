@@ -1,20 +1,17 @@
 dataset_file = LDO_netlist_dump.csv
-m = 0.04
+m = 300
 k = 2
 tmax = 30
 tmin = 10
+trace_length = 0.04
 
 start
-a 9 10
-b 11 12
-c 13 14
-d 15 16
-e 17 18
-f 19 20
-g 21 22
-h 23 24
-i 25 26
-j 27 28
+
+en 26 25
+vin 28 27
+ven 30 29
+vout 32 31
+
 end
 
-target = "f > 9"
+target = "vout >= 3.38"
