@@ -15,6 +15,9 @@ import sys
 # 	the constant value will be between min and max of the value of signal
 
 
+def print_dictionary(temp_dict):
+	for i in temp_dict:
+		print i,temp_dict[i]
 
 def disp():
 	i=1;
@@ -23,6 +26,9 @@ def disp():
 		i+=1
 		if (i == 10):
 			break
+
+def swap(a,b):
+	a,b = b,a
 
 predicateList=[]
 IntervalList=[]
@@ -81,7 +87,6 @@ def read_from_config(config_file_name,signal_list,other_arguments,influence_list
 				continue
 			else:
 				target_interval = parse_interval_from_string(row.strip())
-				print 'target',target_interval
 			continue
 
 		line = [i.strip() for i in row.strip().split('=')] #   row.strip().split('=').strip()
@@ -96,6 +101,10 @@ def read_from_config(config_file_name,signal_list,other_arguments,influence_list
 		if( line[0] == 'k'):
 			k = line[1]
 			print 'k = ',k
+			continue
+		if( line[0] == 'n'):
+			n = line[1]
+			print 'n = ',n
 			continue
 		if( line[0] == 'tmax'):
 			tmax = line[1]
@@ -135,6 +144,7 @@ def read_from_config(config_file_name,signal_list,other_arguments,influence_list
 	other_arguments.append(k)
 	other_arguments.append(tmax)
 	other_arguments.append(tmin)
+	other_arguments.append(n)
 	other_arguments.append(trace_length)
 	other_arguments.append(target_interval)
 
@@ -153,6 +163,7 @@ def find_target_columns(target_pred,signal_list):
 	print 'The provided target is not in signal list.. or is not in correct format variable_name<space>operator<space>constant'
 
 def compute_min_max_of_signal_variable(csv_filename,signal_list ,minmax_of_signal_variables):
+	print 'computing min and max for every signal variable'
 	for entry in signal_list:
 		col_val = entry[2]
 		min_val=1000
@@ -173,7 +184,7 @@ def compute_min_max_of_signal_variable(csv_filename,signal_list ,minmax_of_signa
 		minmax_entry.append(min_val)
 		minmax_entry.append(max_val)
 		minmax_of_signal_variables.append(minmax_entry)
-		print 'computed min and max'
+	print 'computed min and max for every signal variable'
 
 def eleminate_useless_signals(processed_signal_variable , minmax_of_signal_variables):
 	for entry in minmax_of_signal_variables:
@@ -182,6 +193,7 @@ def eleminate_useless_signals(processed_signal_variable , minmax_of_signal_varia
 			# that signal variable is marked as processed
 			processed_signal_variable[entry[0]] = 1
 			print 'The signal variable ',entry[0],'has same minmax value and hence is marked as already processed'
+	print 'Eliminating useless signal completed'
 
 
 #find interval arguments are column number of value,column number of time,predicate
@@ -237,41 +249,79 @@ def parse_interval_from_string(line):
 		interval.append([first,second])
 	return interval
 
-def generate_pseude_targets(pseudo_targets,n,k):
+def generate_pseudo_targets(pseudo_targets,n,k):
 	i=1
 	while(i <= n):
 		pseudo_targets[-1 * i] = minkowski_difference(target_interval,i*k) 
 		i+=1
 
+def generate_pseudo_complenemt_targets(pseudo_complenemt_targets,n,k):
+	i=1
+	while(i <= n):
+		pseudo_complenemt_targets[-1 * i] = minkowski_difference(target_false_interval,i*k) 
+		i+=1
 
 def minkowski_sum(interval,k):
 	n_interval = []
 	for entry in interval:
 		temp = []
 		temp.append(entry[0])
-		temp.append(entry[1] + k)
+		temp.append(entry[1] + float(k))
 		n_interval.append(temp)
 
 	return n_interval
 
 def minkowski_difference(interval,k):
-	print 'interval is',interval
+	# print 'interval is',interval
 	n_interval = []
 	for entry in interval:
 		temp = []
-		temp.append(entry[0])
-		temp.append(entry[1] + k)
+		temp.append(entry[0] - float(k))
+		temp.append(entry[1] )
 		n_interval.append(temp)
 
 	return n_interval
 
+def sort_influence_list(influence_list):
+	list_len = len(influence_list)
+	if(list_len < 2):
+		return
+	i=0
+	j=1
+	while(i<list_len):
+		j=i+1
+		while(j<list_len):
+			# print i,j
+			if influence_list[i][0] < influence_list[j][0] :
+				influence_list[i],influence_list[j] = influence_list[j],influence_list[i]
+			j+=1
+		i+=1
 
-def get_max_bucket_value(influence_list):
-	n = -1
+def fill_intersected_influence_list(n):
+	for i in range(n+1):
+		intersected_influence_list[i] = []
 	for entry in influence_list:
-		if (entry[0] > n):
-			n = entry[0]
-	return n
+		bucket_number,bucket_interval=entry
+		intersected_influence_list[bucket_number] = bucket_interval
+	print 'printing intersected_influence_list'
+
+	i = n-1
+	while(i >= 0):
+		if len(intersected_influence_list[i + 1])!=0:
+			temp_interval = minkowski_sum(intersected_influence_list[i + 1],k)  
+			intersected_influence_list[i]= temp_interval
+		i-=1
+
+
+	print_dictionary(intersected_influence_list)
+
+
+def get_min_bucket_value(influence_list):
+	mbv = influence_list[0][0]
+	for entry in influence_list:
+		if (entry[0] < mbv):
+			mbv = entry[0]
+	return mbv
 
 def compute_interval_length(interval):
 	interval_length = 0.0
@@ -402,30 +452,14 @@ def print_m_best_predicates():
 	for i in range(0,len(m_best_predicates)):
 		print i+1,'\t',m_best_predicates[i][0],'\t',m_best_predicates[i][1]
 	
-
-
 # this fnction returns the best value of predicate we can get for a given operator op..
 # with constant between min and max value of that variable
 def generate_predicate(i,op,IntervalList,curr_error):
 	
 	col_val,col_time = find_column(i)
-	# col_val= 2*i
-	# col_time = 2*i -1
-	min_val=1000
-	max_val=-1000
-	first_line=1
+	min_val , max_val = find_min_max_of_variable(i)
 	store_error = {}
-	#the following block find the minimum and maximum value of the signal variable reading from the file.
-	with open(csv_filename,'rb') as csvfile:
-		filereader=csv.reader(csvfile,delimiter=',')
-		for row in filereader:
-			if(first_line == 1):
-				#first line is the signal variable name so we skip that.
-				first_line = 0
-				continue
-			val=float(row[col_val-1])
-			min_val = min(min_val,val)
-			max_val = max(max_val,val)
+	
 	print '\n\ncolummn signal',i,'max_val= ',max_val,'min_val = ',min_val
 	if(min_val == max_val):
 		return 0,"blank",[]
@@ -436,7 +470,7 @@ def generate_predicate(i,op,IntervalList,curr_error):
 	# Tmin=10
 	T=Tmax
 	const_val = (max_val + min_val )/2
-	constraint = i + ' >= '+str(const_val)
+	constraint = i + ' ' + op + ' ' + str(const_val)
 	# constraint = 'value >= '+str(const_val)
 
 	init_pred = (col_val,col_time,constraint)
@@ -452,6 +486,7 @@ def generate_predicate(i,op,IntervalList,curr_error):
 	print 'predicate ',init_pred,'gain ',gain
 
 	store_m_best_predicates(gain,init_pred)
+
 	while(T>Tmin):
 		displacement = (T - Tmin) * 1.0/(Tmax - Tmin)
 		const_val_left = const_val - ((const_val - min_val) * displacement)
@@ -463,7 +498,7 @@ def generate_predicate(i,op,IntervalList,curr_error):
 			error_left = store_error[const_val_left]
 			gain_left = curr_error - error_left
 		else:
-			constraint_left = i+ ' >= '+str(const_val_left)
+			constraint_left = i + ' ' + op + ' ' +str(const_val_left)
 			init_pred_left = (col_val,col_time,constraint_left)
 			init_pred_interval_left = find_Interval(init_pred_left)
 			error_left = find_error_for_predicate(IntervalList,init_pred_interval_left)
@@ -477,7 +512,7 @@ def generate_predicate(i,op,IntervalList,curr_error):
 			error_right = store_error[const_val_right]
 			gain_right = curr_error - error_right
 		else:
-			constraint_right = i + ' >= '+str(const_val_right)
+			constraint_right =i + ' ' + op + ' ' + str(const_val_right)
 			init_pred_right = (col_val,col_time,constraint_right)
 			init_pred_interval_right = find_Interval(init_pred_right)
 			error_right= find_error_for_predicate(IntervalList,init_pred_interval_right)
@@ -515,37 +550,19 @@ def generate_predicate(i,op,IntervalList,curr_error):
 		#decrease temperature
 		T-=1
 
-	constraint =i + ' >= '+str(const_val)
+	constraint =i + ' ' + op + ' ' + str(const_val)
 	init_pred = (col_val,col_time,constraint)
 	
 	return gain,init_pred,init_pred_interval
-	# const_val = min_val
-	# mx_mean = 0
-	# mx_predicate = (-1,-1,'')
-	# while( const_val < max_val):
-	# 	print 'const value',const_val
-	# 	constraint = 'y >= '+str(const_val)
-	# 	init_pred = (col_val,col_time,constraint)
-	# 	error = find_mean_for_predicate(init_pred,IntervalList,predicateList)
-	# 	gain = error - curr_error
-	# 	#gain = curr_error - error
-	# 	print 'signal variable ',i,' gain ',gain
-	# 	if(gain > mx_mean):
-	# 		mx_predicate = init_pred
-	# 		mx_mean=gain
-
-	# 	const_val += 0.15
-	# return mx_mean,mx_predicate
-	
 
 
 
 def sa(IntervalList,processed_signal_variable,curr_error):
 	#local variables 
-	max_gain = 0.0
-	best_predicate = (-1,-1,'val >= 0')
-	best_predicate_interval = []
-	any_variable_to_add = 0
+	# max_gain = 0.0
+	# best_predicate = (-1,-1,'val >= 0')
+	# best_predicate_interval = []
+	# any_variable_to_add = 0
 
 	#for every signal variable check best predicate that could be generated.
 	for i in processed_signal_variable:
@@ -554,7 +571,8 @@ def sa(IntervalList,processed_signal_variable,curr_error):
 			#here we are calling function that returns us best predicate for i th signal variable for every operator in operator list
 			gain = -1
 			for op in operator_list:
-				gain_op,predicate_op,interval_op = generate_predicate(i,op,IntervalList,curr_error)
+				for bucket_number in range(n+1):
+					gain_op,predicate_op,interval_op = generate_predicate(i,op,IntervalList,curr_error)
 				if(gain_op > gain):
 					gain,predicate,interval = gain_op,predicate_op,interval
 
@@ -586,13 +604,24 @@ if __name__ == "__main__":
 		arguments = sys.argv
 		
 		# list of signal variables [signal_variable_name , column_time , column_value]
+		global signal_list
 		signal_list = []
 
 		# storing minimum and maximum of signal varibale in form signal_variable_name , minimum value , maximum value
+		global minmax_of_signal_variables
 		minmax_of_signal_variables = []
 		
 		# list of buckets of the intervals [bucket number,list of interval]
+		global influence_list
 		influence_list = []
+
+		
+
+		# list of buckets of the intervals [bucket number,list of interval] where every interval is intersected with previous
+		# with resolution [0:k]
+		global intersected_influence_list
+		intersected_influence_list = {}
+
 		
 		# arguments to read from config csv_filename,m,k,Tmax,Tmin,trace_length,target_interval
 		other_arguments = []
@@ -600,8 +629,14 @@ if __name__ == "__main__":
 		global target_interval
 		target_interval = []
 
+		global target_false_interval
+		target_false_interval = []
+
 		global pseudo_targets
 		pseudo_targets={}
+
+		global pseudo_complenemt_targets
+		pseudo_complenemt_targets={}
 
 		
 		
@@ -613,8 +648,8 @@ if __name__ == "__main__":
 		config_file_name = 'config_file_constrained.txt'
 		print 'calling read_config'
 		read_from_config(config_file_name,signal_list,other_arguments,influence_list)
-		print 'influence list \n',influence_list
-		print 'other arguments ',other_arguments
+		# print 'influence list \n',influence_list
+		# print 'other arguments ',other_arguments
 		# target_time = 19
 		# target_col = 20
 		# pred = 'value >= 2'
@@ -624,31 +659,54 @@ if __name__ == "__main__":
 		csv_filename = other_arguments[0]
 		global m 
 		m = int(other_arguments[1])
-		k= int(other_arguments[2])
+		k= float(other_arguments[2])
 		global Tmax
 		global Tmin
 		Tmax = int(other_arguments[3])
 		Tmin = int(other_arguments[4])
+		n= int(other_arguments[5])
 		global trace_length
-		trace_length = float(other_arguments[5])
+		trace_length = float(other_arguments[6])
 		global initial_trace_length
 		initial_trace_length = trace_length
-		target_interval = other_arguments[6]
-		print 'target_interval',target_interval
+		target_interval = other_arguments[7]
+		print 'target_interval \n',target_interval,'\n'
 
-		n = get_max_bucket_value(influence_list)
-		generate_pseude_targets(pseudo_targets,n,k)
-		print pseudo_targets
+		target_false_interval = complement_interval(target_interval)
+
+		print 'target_false_interval \n',target_false_interval,'\n'
+
+		sort_influence_list(influence_list)
+		
+		minimum_bucket_value = get_min_bucket_value(influence_list)
+		print 'minimum_bucket_value',minimum_bucket_value
+
+		generate_pseudo_targets(pseudo_targets,n,k)
+		generate_pseudo_complenemt_targets(pseudo_complenemt_targets,n,k)
+		
+		print 'pseudo targets are as follows'
+		print_dictionary(pseudo_targets)
+
+		print 'pseudo_complenemt_targets'
+		print_dictionary(pseudo_complenemt_targets)
+
+
+		fill_intersected_influence_list(n)
+
 		global processed_signal_variable
 		processed_signal_variable = {}
 		for i in signal_list:
 			processed_signal_variable[i[0]] = 0
-		print 'code has reached here'
+		
 		# the function computes minimum and maximum value of every signal variable and stores it in list minmax of signla variable
 		compute_min_max_of_signal_variable(csv_filename,signal_list ,minmax_of_signal_variables)
 
 		#the signal variable whose min and max values are same will not contribute and hence are eliminated
 		eleminate_useless_signals(processed_signal_variable , minmax_of_signal_variables)
+
+		# sa(intersected_influence_list,influence_list,)
+
+
 
 		global m_best_predicates
 		m_best_predicates = []
