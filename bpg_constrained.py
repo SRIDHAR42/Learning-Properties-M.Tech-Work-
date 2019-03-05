@@ -171,9 +171,11 @@ def find_target_columns(target_pred,signal_list):
 	print 'The provided target is not in signal list.. or is not in correct format variable_name<space>operator<space>constant'
 
 def compute_min_max_of_signal_variable(csv_filename,signal_list ,minmax_of_signal_variables):
-	my_file = os.path.exists("./minimum_maximum_stored.txt")
+	minmax_file_name = 'minimum_maximum_' + csv_filename[:-4] +'.txt'
+	print 'minmax file name is ',minmax_file_name
+	my_file = os.path.exists('./'+minmax_file_name)
 	if my_file:
-		filereader = open('minimum_maximum_stored.txt','r+')
+		filereader = open(minmax_file_name,'r+')
 		for row in filereader:
 				if(row == '\n'):
 					continue
@@ -192,7 +194,7 @@ def compute_min_max_of_signal_variable(csv_filename,signal_list ,minmax_of_signa
 	else:
 		print 'file not present'
 	print 'computing min and max for every signal variable'
-	fptr = open('minimum_maximum_stored.txt','w+')
+	fptr = open(minmax_file_name,'w+')
 	fptr.truncate()
 
 	for entry in signal_list:
