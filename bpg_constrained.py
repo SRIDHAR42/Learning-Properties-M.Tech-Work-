@@ -5,6 +5,14 @@
  #        M.Tech 2nd Year, Dept. of CSE, IIT Kharagpur     
  #                                                               
  #################################################################
+
+# UPDATES TO MAKE IN THE CODE
+
+
+
+
+
+
 import csv
 import os
 import random
@@ -15,6 +23,11 @@ import sys
 # 1 Tuple: Tuple for storing predicate in the form(col,op,const value)
 # 	the constant value will be between min and max of the value of signal
 
+
+
+# DATA STRUCTURE DESCRIPTION
+# predicate is a tuple (signalname,operator,constant)
+# m_best_predicates is a list where each element is (gain,predicate,bucket_number)
 
 def print_dictionary(temp_dict):
 	for i in temp_dict:
@@ -90,6 +103,9 @@ def read_from_config(config_file_name,signal_list,other_arguments,influence_list
 			continue
 
 		line = [i.strip() for i in row.strip().split('=')] #   row.strip().split('=').strip()
+		if( line[0] == 'COMMENTS'):
+			print 'found comments config file reading ended'
+			break
 		if( line[0] == 'm'):
 			m = line[1]
 			print 'm = ',m
@@ -275,7 +291,7 @@ def find_Interval(target_predicate):
 	return interval
 		
 def parse_interval_from_string(line,initial_trace_length):
-	print 'line for config',line
+	# print 'line for config',line
 	interval=[]
 	if(line == '{}'):
 		return interval
@@ -300,8 +316,8 @@ def parse_interval_from_string(line,initial_trace_length):
 			temp.append(second)
 			interval.append(temp)
 			# interval.append([first,second])
-	print 'interval extracted ',interval
-	print 'initial trace_length',initial_trace_length
+	# print 'interval extracted ',interval
+	# print 'initial trace_length',initial_trace_length
 	return interval
 
 def generate_pseudo_targets(pseudo_targets,n,k):
@@ -633,13 +649,37 @@ def find_error_for_predicate_target(interval):
 	error = 2 * mean * (1-mean)
 	return error
 
+
+
 #The function stores the m best predicates on the basics of gain
 def store_m_best_predicates(gain,predicate,bucket_number):
 	if gain <= 0:
 		return
+	
+	for i in range(len(m_best_predicates)):
+		item_gain,item_predicate,item_bucket_number = m_best_predicates[i]
+		print 'both gains are ',item_gain,gain
+		# if(item_gain == gain):
+		# 	print 'they are equal'
+		# else:
+		# 	print 'they are not equal'
+		if(item_gain == gain and item_bucket_number == bucket_number):
+			item_predicate_signalname,item_predicate_operator,item_predicate_constant = item_predicate
+			predicate_signalname,predicate_operator,predicate_constant = predicate
+			if(item_predicate_signalname == predicate_signalname and item_predicate_operator == predicate_operator):
+				if(predicate_operator == '>=' and predicate_constant >= item_predicate_constant):
+					m_best_predicates[i][1] = predicate
+					return
+				if(predicate_operator == '<=' and predicate_constant <= item_predicate_constant):
+					m_best_predicates[i][1] = predicate
+					return
+				return
+		
+		
 	if((gain,predicate,bucket_number) in m_best_predicates):
 		print 'predicate already added to priority list'
 		return
+
 	index_new_predicate = 0
 	len_m_best_predicates = len(m_best_predicates)
 	if(len_m_best_predicates == 0):
@@ -667,7 +707,7 @@ def  generate_predicate(i,op, bucket_number ,curr_error):
 	min_val , max_val = find_min_max_of_variable(i)
 	store_error = {}
 	
-	print '\n\ncolummn signal',i,'max_val= ',max_val,'min_val = ',min_val
+	print '\n\n signal',i,'max_val= ',max_val,'min_val = ',min_val,'bucket number =',bucket_number
 	if(min_val == max_val):
 		return 0,"blank",[]
 
@@ -808,6 +848,7 @@ def sa():
 #main function hard coded the target signal value
 if __name__ == "__main__":
 		arguments = sys.argv
+		print 'name of config file ',arguments[1]
 		
 		# list of signal variables [signal_variable_name , column_time , column_value]
 		global signal_list
@@ -859,7 +900,11 @@ if __name__ == "__main__":
 		operator_list = ['>=','<=']
 
 		#find interval arguments are column number of value,column number of time,predicate
-		config_file_name = 'config_file_constrained.txt'
+		if(len(arguments) < 2):
+			print 'config filename not given in argument so by default taking config_file_constrained.txt'
+			config_file_name = 'config_file_constrained.txt'
+		else:
+			config_file_name = arguments[1]
 		print 'calling read_config'
 		read_from_config(config_file_name,signal_list,other_arguments,influence_list)
 		# print 'influence list \n',influence_list
@@ -925,7 +970,3 @@ if __name__ == "__main__":
 		sa()
 
 		print_m_best_predicates()
-
-		
-
-	
