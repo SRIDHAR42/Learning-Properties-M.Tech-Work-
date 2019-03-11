@@ -8,6 +8,9 @@
 
 # UPDATES TO MAKE IN THE CODE
 
+# if gain is same then
+# for >= store biggest constant
+# for <= store minimum constant
 
 
 
@@ -589,13 +592,18 @@ def find_error_for_predicate(predicate,bucket_number):
 	choosen_pseudo_complement_target = pseudo_complement_targets[-1 * temp_minimum_bucket_value]
 
 
-	# print 'printing various intervals'
-	# print predicate_interval
-	# print complement_predicate_interval
-	# print processed_predicate_interval
-	# print processed_complemant_predicate_interval
-	# print choosen_pseudo_target
-	# print choosen_pseudo_complement_target
+	print 'printing various intervals'
+	print 'predicate interval'
+	print predicate_interval
+	print 'complement_predicate_interval'
+	print complement_predicate_interval
+	print 'processed predicate interval'
+	print processed_predicate_interval
+	print 'processed complement predicate interval'
+	print processed_complemant_predicate_interval
+	print 'choosen target and pseudo complement target'
+	print choosen_pseudo_target
+	print choosen_pseudo_complement_target
 
 
 	mean_for_predicate = compute_mean_two_interval(processed_predicate_interval,choosen_pseudo_target)
@@ -604,7 +612,15 @@ def find_error_for_predicate(predicate,bucket_number):
 	false_mean_for_predicate = compute_mean_two_interval(processed_predicate_interval,choosen_pseudo_complement_target)
 	false_mean_for_predicate_false = compute_mean_two_interval(processed_complemant_predicate_interval,choosen_pseudo_complement_target)
 
-	
+	print 'mean_for_predicate'
+	print mean_for_predicate
+	print 'mean for predicate false'
+	print mean_for_predicate_false
+	print 'false mean for predicate'
+	print false_mean_for_predicate
+	print 'false mean for predicate false'
+	print false_mean_for_predicate_false
+
 	# if any of the mean is -1 the it means it is bad and should not be taken
 	if (mean_for_predicate == -1 ):
 		true_error_predicate = 1000
@@ -629,12 +645,26 @@ def find_error_for_predicate(predicate,bucket_number):
 	else:
 		false_error_predicate_fasle = 2 * false_mean_for_predicate_false * (1 - false_mean_for_predicate_false)
 
+	extra_info = []
+	if(true_error_predicate < false_error_predicate):
+		extra_info.append('left branch true error')
+		extra_info.append(true_error_predicate)
+	else:
+		extra_info.append('left branch false error')
+		extra_info.append(false_error_predicate)
+	if(true_error_predicate_false < false_error_predicate_fasle):
+		extra_info.append('right branch true error')
+		extra_info.append(true_error_predicate_false)
+	else:
+		extra_info.append('right branch false error')
+		extra_info.append(false_error_predicate_fasle)
+
 	error_predicate = min(true_error_predicate,false_error_predicate)
 	error_predicate_false = min(true_error_predicate_false,false_error_predicate_fasle)
 
 	error_with_split = error_predicate + error_predicate_false 
 
-	return error_with_split
+	return error_with_split,extra_info
 
 	
 def find_error_for_predicate_target(interval):
@@ -652,12 +682,12 @@ def find_error_for_predicate_target(interval):
 
 
 #The function stores the m best predicates on the basics of gain
-def store_m_best_predicates(gain,predicate,bucket_number):
+def store_m_best_predicates(gain,predicate,bucket_number,extra_info):
 	if gain <= 0:
 		return
 	
 	for i in range(len(m_best_predicates)):
-		item_gain,item_predicate,item_bucket_number = m_best_predicates[i]
+		item_gain,item_predicate,item_bucket_number,item_extra_info = m_best_predicates[i]
 		print 'both gains are ',item_gain,gain
 		# if(item_gain == gain):
 		# 	print 'they are equal'
@@ -666,24 +696,27 @@ def store_m_best_predicates(gain,predicate,bucket_number):
 		if(item_gain == gain and item_bucket_number == bucket_number):
 			item_predicate_signalname,item_predicate_operator,item_predicate_constant = item_predicate
 			predicate_signalname,predicate_operator,predicate_constant = predicate
+			
 			if(item_predicate_signalname == predicate_signalname and item_predicate_operator == predicate_operator):
 				if(predicate_operator == '>=' and predicate_constant >= item_predicate_constant):
 					m_best_predicates[i][1] = predicate
+					m_best_predicates[i][3] = extra_info
 					return
 				if(predicate_operator == '<=' and predicate_constant <= item_predicate_constant):
 					m_best_predicates[i][1] = predicate
+					m_best_predicates[i][3] = extra_info
 					return
 				return
 		
 		
-	if((gain,predicate,bucket_number) in m_best_predicates):
+	if((gain,predicate,bucket_number,extra_info) in m_best_predicates):
 		print 'predicate already added to priority list'
 		return
 
 	index_new_predicate = 0
 	len_m_best_predicates = len(m_best_predicates)
 	if(len_m_best_predicates == 0):
-		m_best_predicates.append((gain,predicate,bucket_number))
+		m_best_predicates.append((gain,predicate,bucket_number,extra_info))
 		return
 	else:
 		while ( index_new_predicate < len_m_best_predicates):
@@ -691,14 +724,14 @@ def store_m_best_predicates(gain,predicate,bucket_number):
 				break
 			index_new_predicate+=1
 	# if(index_new_predicate != m):
-	m_best_predicates.insert(index_new_predicate,(gain,predicate,bucket_number))
+	m_best_predicates.insert(index_new_predicate,(gain,predicate,bucket_number,extra_info))
 	if(len(m_best_predicates) > m):
 		del m_best_predicates[-1]
 
 def print_m_best_predicates():
-	print 'index \t gain \t\t predicate \t\t bucket_number'
+	print 'index \t gain \t\t predicate \t\t bucket_number \t left branch info \t right branch info',
 	for i in range(0,len(m_best_predicates)):
-		print i+1,'\t',m_best_predicates[i][0],'\t',m_best_predicates[i][1],m_best_predicates[i][2]
+		print i+1,'\t',m_best_predicates[i][0],'\t',m_best_predicates[i][1],m_best_predicates[i][2],m_best_predicates[i][3]
 	
 # this fnction returns the best value of predicate we can get for a given operator op..
 # with constant between min and max value of that variable
@@ -723,7 +756,7 @@ def  generate_predicate(i,op, bucket_number ,curr_error):
 	init_pred = (col_val,col_time,constraint)
 	# init_pred_interval = find_Interval(init_pred)
 	print 'predicate : ', init_pred
-	error= find_error_for_predicate(init_pred, bucket_number)
+	error,extra_info = find_error_for_predicate(init_pred, bucket_number)
 	store_error[const_val] = error
 	# gain is how much the error is reduced
 	
@@ -733,7 +766,7 @@ def  generate_predicate(i,op, bucket_number ,curr_error):
 	gain = curr_error - error
 	print 'predicate ',init_pred,'gain ',gain
 
-	store_m_best_predicates(gain,init_pred,bucket_number)
+	store_m_best_predicates(gain,init_pred,bucket_number,extra_info)
 
 	while(T>Tmin):
 		displacement = (T - Tmin) * 1.0/(Tmax - Tmin)
@@ -749,10 +782,10 @@ def  generate_predicate(i,op, bucket_number ,curr_error):
 			constraint_left = i + ' ' + op + ' ' +str(const_val_left)
 			init_pred_left = (col_val,col_time,constraint_left)
 			# init_pred_interval_left = find_Interval(init_pred_left)
-			error_left = find_error_for_predicate(init_pred_left, bucket_number)
+			error_left,extra_info = find_error_for_predicate(init_pred_left, bucket_number)
 			store_error[const_val_left] = error_left
 			gain_left = curr_error - error_left
-			store_m_best_predicates(gain_left,init_pred_left,bucket_number)
+			store_m_best_predicates(gain_left,init_pred_left,bucket_number,extra_info)
 		
 		
 		#finding error for right value
@@ -763,10 +796,10 @@ def  generate_predicate(i,op, bucket_number ,curr_error):
 			constraint_right =i + ' ' + op + ' ' + str(const_val_right)
 			init_pred_right = (col_val,col_time,constraint_right)
 			# init_pred_interval_right = find_Interval(init_pred_right)
-			error_right= find_error_for_predicate(init_pred_right, bucket_number)
+			error_right,extra_info= find_error_for_predicate(init_pred_right, bucket_number)
 			store_error[const_val_right] = error_right
 			gain_right = curr_error - error_right
-			store_m_best_predicates(gain_right,init_pred_right,bucket_number)
+			store_m_best_predicates(gain_right,init_pred_right,bucket_number,extra_info)
 		
 		print 'gain = ',gain,'gain_left ',gain_left,'gain_right = ',gain_right
 		
