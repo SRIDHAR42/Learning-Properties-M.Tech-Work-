@@ -6,13 +6,11 @@
  #                                                               
  #################################################################
 
+#update date 25 march 19
 # UPDATES TO MAKE IN THE CODE
+# latest as of my knowledge
 
-# if gain is same then
-# for >= store biggest constant
-# for <= store minimum constant
-
-
+# The tool generates best assertions from a time series data and writes it in a file name bestpredicates.txt
 
 
 
@@ -20,11 +18,14 @@ import csv
 import os
 import random
 import sys
+import math 	#for calculating log
 # from pathlib import Path
 
 # data structures
 # 1 Tuple: Tuple for storing predicate in the form(col,op,const value)
 # 	the constant value will be between min and max of the value of signal
+# pseudo_targets,pseudo_complement_targets,pseudo_overlapped_targets are dictionaries with key as -1 * bucket_number
+# and value is the set of intervals
 
 
 
@@ -137,6 +138,10 @@ def read_from_config(config_file_name,signal_list,other_arguments,influence_list
 			csv_filename = line[1]
 			print 'dataset file = ', csv_filename
 			continue
+		if( line[0] == 'bias'):
+			bias = line[1]
+			print 'bias = ', bias
+			continue
 		if( line[0] == 'start'):
 			signal_read = 1
 			continue
@@ -167,6 +172,7 @@ def read_from_config(config_file_name,signal_list,other_arguments,influence_list
 	other_arguments.append(n)
 	other_arguments.append(trace_length)
 	other_arguments.append(target_interval)
+	other_arguments.append(bias)
 
 def find_min_max_of_variable(i):
 	for entry in minmax_of_signal_variables:
@@ -252,7 +258,10 @@ def eleminate_useless_signals(processed_signal_variable , minmax_of_signal_varia
 #find interval arguments are column number of value,column number of time,predicate
 # the function will return an interval where the value of predicate is true
 def find_Interval(target_predicate):
+	global considered_predicate
+	global considered_predicate_interval
 	col_val,col_time,target = target_predicate
+	considered_predicate = target_predicate
 	# print 'finding interval for ',target_predicate
 	f=open("test1",'w+')
 	f.truncate()
@@ -275,6 +284,7 @@ def find_Interval(target_predicate):
 	for row in f:
 		line=row
 	f.close()
+	considered_predicate_interval = line
 	if(line == '{}'):
 		return interval
 	firstline=True
@@ -328,17 +338,21 @@ def generate_pseudo_targets(pseudo_targets,n,k):
 	
 	while(i <= n):
 		pseudo_targets[-1 * i] = minkowski_difference(target_interval,i*k) 
-		pseudo_targets_error[-1 * i] = find_error_for_predicate_target( pseudo_targets[-1 * i])
-		print 'pseudo_targets error for (-',i,')',pseudo_targets_error[-1 *i]
+		# pseudo_targets_error[-1 * i] = find_error_for_predicate_target( pseudo_targets[-1 * i])
+		# print 'pseudo_targets error for (-',i,')',pseudo_targets_error[-1 *i]
 		i+=1
 
 def generate_pseudo_complement_targets(pseudo_complement_targets,n,k):
 	i=0
 	while(i <= n):
 		pseudo_complement_targets[-1 * i] = minkowski_difference(target_false_interval,i*k) 
-		pseudo_complement_targets_error [ -1 * i] = find_error_for_predicate_target (pseudo_complement_targets[-1 * i])
-		print 'pseudo_complement_targets_errorfor (-',i,')',pseudo_complement_targets_error [ -1 * i]
+		# pseudo_complement_targets_error [ -1 * i] = find_error_for_predicate_target (pseudo_complement_targets[-1 * i])
+		# print 'pseudo_complement_targets_errorfor (-',i,')',pseudo_complement_targets_error [ -1 * i]
 		i+=1
+
+def generate_pseudo_overlapped_targets(pseudo_overlapped_targets,n):
+	for temp_bucket_number in range(0,n+1):
+		pseudo_overlapped_targets[-1 *temp_bucket_number] = intersect_interval(pseudo_targets[-1 * temp_bucket_number],pseudo_complement_targets[-1 * temp_bucket_number])
 
 
 def merge_overlapping_intervals(interval):
@@ -466,7 +480,6 @@ def compute_forward_influence_list(predicate_interval,bucket_number):
 	# print 'returning from compute_forward_influence_list'
 	return temp_influence_entry_interval
 
-
 def get_min_bucket_value(influence_list):
 	mbv = n
 	for entry in influence_list:
@@ -476,6 +489,7 @@ def get_min_bucket_value(influence_list):
 
 def compute_interval_length(interval):
 	interval_length = 0.0
+	# print 'inside compute interval length ',interval
 	for i in interval:
 		interval_length += i[1] - i[0]
 	# print 'interval ',interval
@@ -498,7 +512,7 @@ def complement_interval(interval):
 		temp = [i[1],0.0]
 		c_interval.append(temp)
 	if(c_interval[-1][0] > initial_trace_length):
-		print 'anaoly found time value bigger than initial trace length'
+		print 'anomaly found time value bigger than initial trace length'
 	if(c_interval[-1][0] == initial_trace_length):
 		del c_interval[-1]
 	else:
@@ -508,6 +522,8 @@ def complement_interval(interval):
 		del c_interval[0]
 	return c_interval
 
+#merge function does not merge but rather computes the intersection acc to antonio sir
+#was lazy to rename
 def merge(interval1,interval2):
 	interval3=[]
 	len1=len(interval1)
@@ -549,7 +565,9 @@ def intersect_interval(interval1,interval2):
 		if(start2 >= start1 and start2 <= end1):
 			overlap = 1
 		if(overlap == 1):
-			interval3.append([max(start1,start2),min(end1,end2)])
+			start3 , end3 = max(start1,start2),min(end1,end2)
+			if( start3 < end3):
+				interval3.append([start3,end3])
 		if(end1 <= end2):
 			i+=1
 		else:
@@ -559,19 +577,144 @@ def intersect_interval(interval1,interval2):
 
 
 def compute_mean_two_interval(predicate_interval , target_interval):
-	# print 'predicate_interval',predicate_interval
-	# print 'target_interval',target_interval
+	# print '\npredicate_interval\n',predicate_interval
+	# print '\ntarget_interval\n',target_interval
 	intersected_interval = intersect_interval(predicate_interval,target_interval)
-	# print 'intersected_interval',intersected_interval
+	# print '\nintersected_interval\n',intersected_interval
 	len_intersected_interval = compute_interval_length(intersected_interval)
 	# print 'len_intersected_interval',len_intersected_interval
 	len_predicate_interval = compute_interval_length(predicate_interval)
 	# print 'len_predicate_interval',len_predicate_interval
 	if(len_predicate_interval == 0):
-		# print 'found empty interval while computing mean'
+		print 'found empty interval while computing mean'
 		return -1
 	mean_of_intervals = len_intersected_interval / len_predicate_interval
+	# print 'mean computed is ',mean_of_intervals
 	return mean_of_intervals
+
+
+
+def compute_entropy(predicate_interval,temp_bucket_number):
+	end_match = compute_forward_influence_list(predicate_interval,temp_bucket_number)
+
+	if(bias == 1):
+		pseudo_target_interval = pseudo_targets[-1 * temp_bucket_number]
+		# print 'computing mean for target',-1 * temp_bucket_number
+		mean_target = compute_mean_two_interval(end_match,pseudo_target_interval)
+		entropy_interval = 0
+		if(mean_target > 0):
+			entropy_interval = -1 * mean_target * math.log(mean_target,2)
+		return entropy_interval
+
+
+	if(bias == -1):
+		pseudo_complement_target_interval = pseudo_complement_targets[-1 * temp_bucket_number]
+		# print 'computing mean for target complement',-1 * temp_bucket_number
+		mean_complement_target = compute_mean_two_interval(end_match,pseudo_complement_target_interval)
+		entropy_complement_interval = 0
+		if(mean_complement_target > 0):
+			entropy_complement_interval = -1 * mean_complement_target * math.log(mean_complement_target,2)
+		return entropy_complement_interval
+
+
+
+	pseudo_target_interval = pseudo_targets[-1 * temp_bucket_number]
+	pseudo_complement_target_interval = pseudo_complement_targets[-1 * temp_bucket_number]
+	pseudo_overlapped_target_interval = pseudo_overlapped_targets[-1 * temp_bucket_number]
+
+	# print 'computing mean for target',-1 * temp_bucket_number
+	mean_target = compute_mean_two_interval(end_match,pseudo_target_interval)
+	# print 'computing mean for target complement',-1 * temp_bucket_number
+	mean_complement_target = compute_mean_two_interval(end_match,pseudo_complement_target_interval)
+	# print 'computing mean for target overlapped',-1 * temp_bucket_number
+	mean_overlapped_target = compute_mean_two_interval(end_match , pseudo_overlapped_target_interval)
+
+	# print 'means are'
+	# print mean_target,mean_complement_target,mean_overlapped_target
+	entropy_interval = 0
+	if(mean_target > 0):
+		entropy_interval = -1 * mean_target * math.log(mean_target,2)
+	entropy_complement_interval = 0
+	if(mean_complement_target > 0):
+		entropy_complement_interval = -1 * mean_complement_target * math.log(mean_complement_target,2)
+	entropy_overlap = 0
+	if(mean_overlapped_target > 0):
+		entropy_overlap = mean_overlapped_target * math.log(mean_overlapped_target,2)
+
+	entropy_final = entropy_interval + entropy_complement_interval + entropy_overlap
+	return entropy_final
+
+
+def compute_entropy_for_current_node():
+	temp_bucket_number = initial_minimum_bucket_value
+	end_match = intersected_influence_list[initial_minimum_bucket_value]
+	
+	# print 'end match'
+	# print end_match
+
+
+	if(bias == 1):
+		pseudo_target_interval = pseudo_targets[-1 * temp_bucket_number]
+		# print 'pseudo_target_interval'
+		# print pseudo_target_interval
+		# print 'computing mean for target',-1 * temp_bucket_number
+		mean_target = compute_mean_two_interval(end_match,pseudo_target_interval)
+		entropy_interval = 0
+		if(mean_target > 0):
+			entropy_interval = -1 * mean_target * math.log(mean_target,2)
+		# only returning true entropy
+		return entropy_interval
+
+
+	if(bias == -1):
+		pseudo_complement_target_interval = pseudo_complement_targets[-1 * temp_bucket_number]
+		# print 'pseudo_complement_target_interval'
+		# print pseudo_complement_target_interval
+		# print 'computing mean for target complement',-1 * temp_bucket_number
+		mean_complement_target = compute_mean_two_interval(end_match,pseudo_complement_target_interval)
+		entropy_complement_interval = 0
+		if(mean_complement_target > 0):
+			entropy_complement_interval = -1 * mean_complement_target * math.log(mean_complement_target,2)
+		# returning entropy for false becasue bias is -1
+		return entropy_complement_interval
+
+	if(bias != 0):
+		print 'Bias values cannot be anything other than 1,-1 and 0'
+
+	pseudo_target_interval = pseudo_targets[-1 * temp_bucket_number]
+	pseudo_complement_target_interval = pseudo_complement_targets[-1 * temp_bucket_number]
+	pseudo_overlapped_target_interval = pseudo_overlapped_targets[-1 * temp_bucket_number]
+
+	# print 'various intervals for pseudo target in computation of entropy for target'
+	# print 'pseudo_target_interval'
+	# print pseudo_target_interval
+	# print 'pseudo_complement_target_interval'
+	# print pseudo_complement_target_interval
+	# print 'pseudo_overlapped_target_interval'
+	# print pseudo_overlapped_target_interval
+
+	# print 'computing mean for target',-1 * temp_bucket_number
+	mean_target = compute_mean_two_interval(end_match,pseudo_target_interval)
+	# print 'computing mean for target complement',-1 * temp_bucket_number
+	mean_complement_target = compute_mean_two_interval(end_match,pseudo_complement_target_interval)
+	# print 'computing mean for target overlapped',-1 * temp_bucket_number
+	mean_overlapped_target = compute_mean_two_interval(end_match , pseudo_overlapped_target_interval)
+
+	print 'means are'
+	print mean_target,mean_complement_target,mean_overlapped_target
+	entropy_interval = 0
+	if(mean_target > 0):
+		entropy_interval = -1 * mean_target * math.log(mean_target,2)
+	entropy_complement_interval = 0
+	if(mean_complement_target > 0):
+		entropy_complement_interval = -1 * mean_complement_target * math.log(mean_complement_target,2)
+	entropy_overlap = 0
+	if(mean_overlapped_target > 0):
+		entropy_overlap = mean_overlapped_target * math.log(mean_overlapped_target,2)
+	print 'entropys for target are'
+	print entropy_interval,entropy_complement_interval,entropy_overlap
+	entropy_final = entropy_interval + entropy_complement_interval + entropy_overlap
+	return entropy_final
 
 
 #change function name
@@ -579,116 +722,46 @@ def compute_mean_two_interval(predicate_interval , target_interval):
 # so you can directly find the gain. 
 def find_error_for_predicate(predicate,bucket_number):
 	#interval = find_Interval(predicate)
+	#finding intervals
 	temp_minimum_bucket_value = min(bucket_number,initial_minimum_bucket_value)
 	predicate_interval = find_Interval(predicate)
 	complement_predicate_interval = complement_interval(predicate_interval)
 
-	processed_predicate_interval = compute_forward_influence_list(predicate_interval,bucket_number)
-	
-	processed_complemant_predicate_interval = compute_forward_influence_list(complement_predicate_interval,bucket_number)
+	# computing entropy
+	entropy_predicate_true = compute_entropy(predicate_interval,temp_minimum_bucket_value)
+	entropy_predicate_false = compute_entropy(complement_predicate_interval,temp_minimum_bucket_value)
+	print 'entropys are'
+	print entropy_predicate_true,entropy_predicate_false
 
-	choosen_pseudo_target = pseudo_targets[-1 * temp_minimum_bucket_value]
-
-	choosen_pseudo_complement_target = pseudo_complement_targets[-1 * temp_minimum_bucket_value]
-
-
-	print 'printing various intervals'
-	print 'predicate interval'
-	print predicate_interval
-	print 'complement_predicate_interval'
-	print complement_predicate_interval
-	print 'processed predicate interval'
-	print processed_predicate_interval
-	print 'processed complement predicate interval'
-	print processed_complemant_predicate_interval
-	print 'choosen target and pseudo complement target'
-	print choosen_pseudo_target
-	print choosen_pseudo_complement_target
-
-
-	mean_for_predicate = compute_mean_two_interval(processed_predicate_interval,choosen_pseudo_target)
-	mean_for_predicate_false = compute_mean_two_interval(processed_complemant_predicate_interval,choosen_pseudo_target)
-
-	false_mean_for_predicate = compute_mean_two_interval(processed_predicate_interval,choosen_pseudo_complement_target)
-	false_mean_for_predicate_false = compute_mean_two_interval(processed_complemant_predicate_interval,choosen_pseudo_complement_target)
-
-	print 'mean_for_predicate'
-	print mean_for_predicate
-	print 'mean for predicate false'
-	print mean_for_predicate_false
-	print 'false mean for predicate'
-	print false_mean_for_predicate
-	print 'false mean for predicate false'
-	print false_mean_for_predicate_false
-
-	# if any of the mean is -1 the it means it is bad and should not be taken
-	if (mean_for_predicate == -1 ):
-		true_error_predicate = 1000
-	else:
-		true_error_predicate = 2 * mean_for_predicate * (1 - mean_for_predicate )
-	
-
-	if (mean_for_predicate_false == -1 ):
-		true_error_predicate_false = 1000
-	else:
-		true_error_predicate_false = 2 * mean_for_predicate_false * (1- mean_for_predicate_false )
-
-
-	if ( false_mean_for_predicate == -1 ):
-		false_error_predicate = 1000
-	else:
-		false_error_predicate = 2 * false_mean_for_predicate * ( 1- false_mean_for_predicate )
+	# computing probabilty i.e the weight of entropy	
+	predicate_true_length = compute_interval_length(predicate_interval)
+	predicate_false_length = compute_interval_length(complement_predicate_interval)
+	predicate_total_length = predicate_true_length + predicate_false_length
+	probalility_predicate_true = predicate_true_length / predicate_total_length
+	probability_predicate_false = predicate_false_length / predicate_total_length
+	print 'branch probabilities(weights) are'
+	print probalility_predicate_true,probability_predicate_false
+	error_with_split = (probalility_predicate_true * entropy_predicate_true) + (probability_predicate_false * entropy_predicate_false)
+	return error_with_split
 
 	
-	if (false_mean_for_predicate_false == -1 ):
-		false_error_predicate_fasle = 1000
-	else:
-		false_error_predicate_fasle = 2 * false_mean_for_predicate_false * (1 - false_mean_for_predicate_false)
 
-	extra_info = []
-	if(true_error_predicate < false_error_predicate):
-		extra_info.append('left branch true error')
-		extra_info.append(true_error_predicate)
-	else:
-		extra_info.append('left branch false error')
-		extra_info.append(false_error_predicate)
-	if(true_error_predicate_false < false_error_predicate_fasle):
-		extra_info.append('right branch true error')
-		extra_info.append(true_error_predicate_false)
-	else:
-		extra_info.append('right branch false error')
-		extra_info.append(false_error_predicate_fasle)
-
-	error_predicate = min(true_error_predicate,false_error_predicate)
-	error_predicate_false = min(true_error_predicate_false,false_error_predicate_fasle)
-
-	error_with_split = error_predicate + error_predicate_false 
-
-	return error_with_split,extra_info
-
-	
-def find_error_for_predicate_target(interval):
-	#interval = find_Interval(predicate)
-	mean = 0.0
-	for i in interval:
-		mean += i[1] - i[0]
-	mean = (mean)/initial_trace_length
-	# print 'mean for target  = ',mean
-	if(mean > 1 or mean < 0):
-		print 'anomaly found in mean for interval ',interval
-	error = 2 * mean * (1-mean)
-	return error
-
-
+# in case of error initially there will be no overlap because we havent applied minkowski minkowski_difference
+# so we dont have to compute overlap interval mean and entropy
 
 #The function stores the m best predicates on the basics of gain
-def store_m_best_predicates(gain,predicate,bucket_number,extra_info):
+# entry are of format [gain,predicate,bucket_number,extra_info(truemean used or falsemean),predicate_interval]
+
+
+def store_m_best_predicates(gain,predicate,bucket_number):
+	# global considered_predicate
+	# global considered_predicate_interval
 	if gain <= 0:
 		return
 	
 	for i in range(len(m_best_predicates)):
-		item_gain,item_predicate,item_bucket_number,item_extra_info = m_best_predicates[i]
-		print 'both gains are ',item_gain,gain
+		item_gain,item_predicate,item_bucket_number = m_best_predicates[i]
+		# print 'both gains are ',item_gains,gain
 		# if(item_gain == gain):
 		# 	print 'they are equal'
 		# else:
@@ -700,23 +773,27 @@ def store_m_best_predicates(gain,predicate,bucket_number,extra_info):
 			if(item_predicate_signalname == predicate_signalname and item_predicate_operator == predicate_operator):
 				if(predicate_operator == '>=' and predicate_constant >= item_predicate_constant):
 					m_best_predicates[i][1] = predicate
-					m_best_predicates[i][3] = extra_info
+					# m_best_predicates[i][3] = extra_info
+					m_best_predicates_interval[i] = considered_predicate_interval
 					return
 				if(predicate_operator == '<=' and predicate_constant <= item_predicate_constant):
 					m_best_predicates[i][1] = predicate
-					m_best_predicates[i][3] = extra_info
+					# m_best_predicates[i][3] = extra_info
+					m_best_predicates_interval[i] = considered_predicate_interval
 					return
 				return
 		
 		
-	if((gain,predicate,bucket_number,extra_info) in m_best_predicates):
+	if((gain,predicate,bucket_number) in m_best_predicates):
 		print 'predicate already added to priority list'
 		return
 
 	index_new_predicate = 0
 	len_m_best_predicates = len(m_best_predicates)
 	if(len_m_best_predicates == 0):
-		m_best_predicates.append((gain,predicate,bucket_number,extra_info))
+		m_best_predicates.append((gain,predicate,bucket_number))
+		# m_best_predicates.append((gain,predicate,bucket_number,extra_info))
+		m_best_predicates_interval.append(considered_predicate_interval)
 		return
 	else:
 		while ( index_new_predicate < len_m_best_predicates):
@@ -724,14 +801,31 @@ def store_m_best_predicates(gain,predicate,bucket_number,extra_info):
 				break
 			index_new_predicate+=1
 	# if(index_new_predicate != m):
-	m_best_predicates.insert(index_new_predicate,(gain,predicate,bucket_number,extra_info))
+	m_best_predicates.insert(index_new_predicate,(gain,predicate,bucket_number))
+	# m_best_predicates.insert(index_new_predicate,(gain,predicate,bucket_number,extra_info))
+	m_best_predicates_interval.insert(index_new_predicate,considered_predicate_interval)
+	print 'predicate =',predicate
+	print 'considered predicate =', considered_predicate
 	if(len(m_best_predicates) > m):
 		del m_best_predicates[-1]
 
+
+
+# The func prints the top m predicates in the file as well as terminal
 def print_m_best_predicates():
+	fileptr = open('best_predicates.txt','w')
+	fileptr.truncate()
+
 	print 'index \t gain \t\t predicate \t\t bucket_number \t left branch info \t right branch info',
 	for i in range(0,len(m_best_predicates)):
-		print i+1,'\t',m_best_predicates[i][0],'\t',m_best_predicates[i][1],m_best_predicates[i][2],m_best_predicates[i][3]
+		fileptr.write("begin_pred\n")
+		fileptr.write(str(m_best_predicates[i][1][2]) + '\n' )
+		fileptr.write('gain = ' + str(m_best_predicates[i][0]) + '\n')
+		fileptr.write('bucket = ' +  str(m_best_predicates[i][2]) + '\n')
+		fileptr.write('intervals = ' + m_best_predicates_interval[i])
+		fileptr.write('end_pred\n\n')
+		print i+1,'\t',m_best_predicates[i][0],'\t',m_best_predicates[i][1][2],m_best_predicates[i][2]
+	fileptr.close()
 	
 # this fnction returns the best value of predicate we can get for a given operator op..
 # with constant between min and max value of that variable
@@ -755,8 +849,8 @@ def  generate_predicate(i,op, bucket_number ,curr_error):
 
 	init_pred = (col_val,col_time,constraint)
 	# init_pred_interval = find_Interval(init_pred)
-	print 'predicate : ', init_pred
-	error,extra_info = find_error_for_predicate(init_pred, bucket_number)
+	# print 'predicate : ', init_pred
+	error = find_error_for_predicate(init_pred, bucket_number)
 	store_error[const_val] = error
 	# gain is how much the error is reduced
 	
@@ -766,7 +860,7 @@ def  generate_predicate(i,op, bucket_number ,curr_error):
 	gain = curr_error - error
 	print 'predicate ',init_pred,'gain ',gain
 
-	store_m_best_predicates(gain,init_pred,bucket_number,extra_info)
+	store_m_best_predicates(gain,init_pred,bucket_number)
 
 	while(T>Tmin):
 		displacement = (T - Tmin) * 1.0/(Tmax - Tmin)
@@ -782,10 +876,10 @@ def  generate_predicate(i,op, bucket_number ,curr_error):
 			constraint_left = i + ' ' + op + ' ' +str(const_val_left)
 			init_pred_left = (col_val,col_time,constraint_left)
 			# init_pred_interval_left = find_Interval(init_pred_left)
-			error_left,extra_info = find_error_for_predicate(init_pred_left, bucket_number)
+			error_left = find_error_for_predicate(init_pred_left, bucket_number)
 			store_error[const_val_left] = error_left
 			gain_left = curr_error - error_left
-			store_m_best_predicates(gain_left,init_pred_left,bucket_number,extra_info)
+			store_m_best_predicates(gain_left,init_pred_left,bucket_number)
 		
 		
 		#finding error for right value
@@ -796,10 +890,10 @@ def  generate_predicate(i,op, bucket_number ,curr_error):
 			constraint_right =i + ' ' + op + ' ' + str(const_val_right)
 			init_pred_right = (col_val,col_time,constraint_right)
 			# init_pred_interval_right = find_Interval(init_pred_right)
-			error_right,extra_info= find_error_for_predicate(init_pred_right, bucket_number)
+			error_right= find_error_for_predicate(init_pred_right, bucket_number)
 			store_error[const_val_right] = error_right
 			gain_right = curr_error - error_right
-			store_m_best_predicates(gain_right,init_pred_right,bucket_number,extra_info)
+			store_m_best_predicates(gain_right,init_pred_right,bucket_number)
 		
 		print 'gain = ',gain,'gain_left ',gain_left,'gain_right = ',gain_right
 		
@@ -845,7 +939,8 @@ def sa():
 	# best_predicate_interval = []
 	any_variable_to_add = 0
 	best_bucket_number = -1
-	curr_error = find_error_for_predicate_target (target_interval)
+	curr_error = compute_entropy_for_current_node()
+	print 'current Error for node is ',curr_error
 	#for every signal variable check best predicate that could be generated.
 	for signal_variable_name in processed_signal_variable:
 		# print 'value of i is',if
@@ -872,10 +967,10 @@ def sa():
 					best_predicate = predicate
 					best_bucket_number = pred_bucket_number
 
-	print 'best of the choosen '
-	print 'maximum gain',max_gain
-	print 'best predicate',best_predicate
-	print 'best_bucket_number',best_bucket_number
+	# print 'best of the choosen '
+	# print 'maximum gain',max_gain
+	# print 'best predicate',best_predicate
+	# print 'best_bucket_number',best_bucket_number
 
 
 #main function hard coded the target signal value
@@ -895,6 +990,10 @@ if __name__ == "__main__":
 		global influence_list
 		influence_list = []
 
+		global considered_predicate
+		considered_predicate = (-1,-1,'val >= -1')
+		global considered_predicate_interval
+		considered_predicate_interval = 'nothing as of now'
 		
 
 		# list of buckets of the intervals [bucket number,list of interval] where every interval is intersected with previous
@@ -918,14 +1017,18 @@ if __name__ == "__main__":
 		global pseudo_complement_targets
 		pseudo_complement_targets={}
 
-		global pseudo_targets_error
-		pseudo_targets_error={}
+		global pseudo_overlapped_targets
+		pseudo_overlapped_targets = {}
 
-		global pseudo_complement_targets_error
-		pseudo_complement_targets_error = {}
+
+		# global pseudo_complement_targets_error
+		# pseudo_complement_targets_error = {}
 
 		global m_best_predicates
 		m_best_predicates = []
+
+		global m_best_predicates_interval
+		m_best_predicates_interval = []
 
 		
 		# list of operators to take into consideration while generating predicates
@@ -964,6 +1067,8 @@ if __name__ == "__main__":
 		initial_trace_length = trace_length
 		target_interval = other_arguments[7]
 		print 'target_interval \n',target_interval,'\n'
+		global bias
+		bias = int(other_arguments[8])
 
 		target_false_interval = complement_interval(target_interval)
 
@@ -976,16 +1081,23 @@ if __name__ == "__main__":
 		print 'initial_minimum_bucket_value',initial_minimum_bucket_value
 
 		generate_pseudo_targets(pseudo_targets,n,k)
-		generate_pseudo_complement_targets(pseudo_complement_targets,n,k)
 		
+		generate_pseudo_complement_targets(pseudo_complement_targets,n,k)
+
+		generate_pseudo_overlapped_targets(pseudo_overlapped_targets,n)
+
 		print 'pseudo targets are as follows'
 		print_dictionary(pseudo_targets)
 
-		print 'pseudo_complement_targets'
+		print '\n\npseudo_complement_targets'
 		print_dictionary(pseudo_complement_targets)
+
+		print '\n\noverlapped pseudo targets are'
+		print_dictionary(pseudo_overlapped_targets)
 
 
 		fill_intersected_influence_list(n)
+
 
 		global processed_signal_variable
 		processed_signal_variable = {}
