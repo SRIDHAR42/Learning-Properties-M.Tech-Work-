@@ -481,17 +481,25 @@ def compute_forward_influence_list(predicate_interval,bucket_number):
 	return temp_influence_entry_interval
 
 def get_min_bucket_value(influence_list):
+	mbv = 0
+	if(influence_list == []):
+		print 'influence list empty'
+		return mbv
 	mbv = n
-	for entry in influence_list:
-		if (entry[0] < mbv):
-			mbv = entry[0]
+	for i in range(0,len(influence_list)):
+		if(influence_list[i][0] < mbv):
+			mbv = influence_list[i][0]
+	# for entry in influence_list:
+	# 	if (entry[0] < mbv):
+	# 		mbv = entry[0]
 	return mbv
 
+# interval is a list of intervals actually so each entry is [start1,end1],[start2,end2]... so on 
 def compute_interval_length(interval):
 	interval_length = 0.0
 	# print 'inside compute interval length ',interval
-	for i in interval:
-		interval_length += i[1] - i[0]
+	for i in range(0,len(interval)):
+		interval_length += interval[i][1] - interval[i][0]
 	# print 'interval ',interval
 	#print 'interval length',interval_length
 	return interval_length
@@ -507,9 +515,9 @@ def complement_interval(interval):
 	
 	temp=[0.0,0.0]
 	c_interval.append(temp)
-	for i in interval:
-		c_interval[-1][1] = i[0]
-		temp = [i[1],0.0]
+	for i in range(0,len(interval)):
+		c_interval[-1][1] = interval[i][0]
+		temp = [interval[i][1],0.0]
 		c_interval.append(temp)
 	if(c_interval[-1][0] > initial_trace_length):
 		print 'anomaly found time value bigger than initial trace length'
@@ -517,9 +525,21 @@ def complement_interval(interval):
 		del c_interval[-1]
 	else:
 		c_interval[-1][1]= initial_trace_length
+	
 
-	if(interval[0][0] == 0):
-		del c_interval[0]
+	# for i in interval:
+	# 	c_interval[-1][1] = i[0]
+	# 	temp = [i[1],0.0]
+	# 	c_interval.append(temp)
+	# if(c_interval[-1][0] > initial_trace_length):
+	# 	print 'anomaly found time value bigger than initial trace length'
+	# if(c_interval[-1][0] == initial_trace_length):
+	# 	del c_interval[-1]
+	# else:
+	# 	c_interval[-1][1]= initial_trace_length
+
+	# if(interval[0][0] == 0):
+	# 	del c_interval[0]
 	return c_interval
 
 #merge function does not merge but rather computes the intersection acc to antonio sir
@@ -648,7 +668,7 @@ def compute_entropy(predicate_interval,temp_bucket_number):
 def compute_entropy_for_current_node():
 	temp_bucket_number = initial_minimum_bucket_value
 	end_match = intersected_influence_list[initial_minimum_bucket_value]
-	
+	print 'for computing error in current node the bucket number is ',temp_bucket_number
 	# print 'end match'
 	# print end_match
 
@@ -681,17 +701,18 @@ def compute_entropy_for_current_node():
 	if(bias != 0):
 		print 'Bias values cannot be anything other than 1,-1 and 0'
 
+	print ' well we have found the bias is 0 '
 	pseudo_target_interval = pseudo_targets[-1 * temp_bucket_number]
 	pseudo_complement_target_interval = pseudo_complement_targets[-1 * temp_bucket_number]
 	pseudo_overlapped_target_interval = pseudo_overlapped_targets[-1 * temp_bucket_number]
 
-	# print 'various intervals for pseudo target in computation of entropy for target'
-	# print 'pseudo_target_interval'
-	# print pseudo_target_interval
-	# print 'pseudo_complement_target_interval'
-	# print pseudo_complement_target_interval
-	# print 'pseudo_overlapped_target_interval'
-	# print pseudo_overlapped_target_interval
+	print 'various intervals for pseudo target in computation of entropy for target'
+	print 'pseudo_target_interval'
+	print pseudo_target_interval
+	print 'pseudo_complement_target_interval'
+	print pseudo_complement_target_interval
+	print 'pseudo_overlapped_target_interval'
+	print pseudo_overlapped_target_interval
 
 	# print 'computing mean for target',-1 * temp_bucket_number
 	mean_target = compute_mean_two_interval(end_match,pseudo_target_interval)
