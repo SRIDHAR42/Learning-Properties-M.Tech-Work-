@@ -6,8 +6,8 @@
  #                                                               
  #################################################################
 
-#update date 25 march 19
-# UPDATES TO MAKE IN THE CODE
+#update date 30 march 19
+
 # latest as of my knowledge
 
 # The tool generates best assertions from a time series data and writes it in a file name bestpredicates.txt
@@ -79,6 +79,7 @@ def read_from_config(config_file_name,signal_list,other_arguments,influence_list
 			continue
 		# Reading the Influence List
 		if(influence_read == 1 and row != '\n'):
+			print 'row is ',row
 			line = row.strip().split(' ')
 			if(line[0] == 'influence_list_end'):
 				influence_read = 0
@@ -87,23 +88,29 @@ def read_from_config(config_file_name,signal_list,other_arguments,influence_list
 			else:
 				line = row.split(' ')
 				bucket_number = int(line[0])
-				# print line[1]
-				bucket_interval = parse_interval_from_string(line[1],trace_length)
+				string_interval = ''
+				for i in range(1,len(line)):
+					string_interval = string_interval + line[i]
+					i+=1
+				# print 'string interval ',string_interval
+				bucket_interval = parse_interval_from_string(string_interval,trace_length)
 				current_influence_list_entry = []
 				current_influence_list_entry.append(bucket_number)
 				current_influence_list_entry.append(bucket_interval)
 				influence_list.append(current_influence_list_entry)
-				# print current_influence_list_entry
+				print current_influence_list_entry
 			continue
 
 		# Reading target interval
 		if(target_read == 1 and row != '\n'):
+			print 'reading target',row
 			line = row.strip().split(' ')
 			if(line[0] == 'target_end'):
 				target_read = 0
 				continue
 			else:
 				target_interval = parse_interval_from_string(row.strip(),trace_length)
+				print 'target interval read by config is ',target_interval
 			continue
 
 		line = [i.strip() for i in row.strip().split('=')] #   row.strip().split('=').strip()
@@ -171,6 +178,7 @@ def read_from_config(config_file_name,signal_list,other_arguments,influence_list
 	other_arguments.append(tmin)
 	other_arguments.append(n)
 	other_arguments.append(trace_length)
+	print 'target interval appending in other arguments is is',target_interval
 	other_arguments.append(target_interval)
 	other_arguments.append(bias)
 
@@ -182,19 +190,14 @@ def find_min_max_of_variable(i):
 	print 'Something wrong the signal variable does not exist'
 
 def find_column(sig_name):
-	for entry in signal_list:
-		if entry[0] == sig_name :
-			#return in format column_value,column_time
-			return entry[2],entry[1]
+	for index in range(0,len(signal_list)):
+		if( signal_list[index][0] == sig_name):
+			return signal_list[index][2],signal_list[index][1]
+	# for entry in signal_list:
+	# 	if entry[0] == sig_name :
+	# 		#return in format column_value,column_time
+	# 		return entry[2],entry[1]
 	
-def find_target_columns(target_pred,signal_list):
-	target_sig_name = target_pred.split()[0]
-	for entry in signal_list:
-		if entry[0] == target_sig_name :
-			#return in format column_value,column_time
-			return entry[2],entry[1]
-	print 'The provided target is not in signal list.. or is not in correct format variable_name<space>operator<space>constant'
-
 def compute_min_max_of_signal_variable(csv_filename,signal_list ,minmax_of_signal_variables):
 	minmax_file_name = 'minimum_maximum_' + csv_filename[:-4] +'.txt'
 	print 'minmax file name is ',minmax_file_name
@@ -433,6 +436,9 @@ def sort_influence_list(influence_list):
 		i+=1
 
 def fill_intersected_influence_list(n):
+	print 'inside fill intersected influence list'
+	print 'printing influence list'
+	print influence_list
 	for i in range(n+1):
 		intersected_influence_list[i] = []
 	for entry in influence_list:
@@ -606,7 +612,7 @@ def compute_mean_two_interval(predicate_interval , target_interval):
 	len_predicate_interval = compute_interval_length(predicate_interval)
 	# print 'len_predicate_interval',len_predicate_interval
 	if(len_predicate_interval == 0):
-		print 'found empty interval while computing mean'
+		# print 'found empty interval while computing mean'
 		return -1
 	mean_of_intervals = len_intersected_interval / len_predicate_interval
 	# print 'mean computed is ',mean_of_intervals
@@ -614,9 +620,9 @@ def compute_mean_two_interval(predicate_interval , target_interval):
 
 
 
-def compute_entropy(predicate_interval,temp_bucket_number):
-	end_match = compute_forward_influence_list(predicate_interval,temp_bucket_number)
-
+def compute_entropy(end_match,temp_bucket_number):
+	
+	print 'end match',end_match
 	if(bias == 1):
 		pseudo_target_interval = pseudo_targets[-1 * temp_bucket_number]
 		# print 'computing mean for target',-1 * temp_bucket_number
@@ -649,8 +655,8 @@ def compute_entropy(predicate_interval,temp_bucket_number):
 	# print 'computing mean for target overlapped',-1 * temp_bucket_number
 	mean_overlapped_target = compute_mean_two_interval(end_match , pseudo_overlapped_target_interval)
 
-	# print 'means are'
-	# print mean_target,mean_complement_target,mean_overlapped_target
+	print 'means are'
+	print mean_target,mean_complement_target,mean_overlapped_target
 	entropy_interval = 0
 	if(mean_target > 0):
 		entropy_interval = -1 * mean_target * math.log(mean_target,2)
@@ -662,15 +668,18 @@ def compute_entropy(predicate_interval,temp_bucket_number):
 		entropy_overlap = mean_overlapped_target * math.log(mean_overlapped_target,2)
 
 	entropy_final = entropy_interval + entropy_complement_interval + entropy_overlap
+
 	return entropy_final
 
 
 def compute_entropy_for_current_node():
 	temp_bucket_number = initial_minimum_bucket_value
 	end_match = intersected_influence_list[initial_minimum_bucket_value]
+	if(end_match == []):
+		end_match.append([0,initial_trace_length])
 	print 'for computing error in current node the bucket number is ',temp_bucket_number
-	# print 'end match'
-	# print end_match
+	print 'end match'
+	print end_match
 
 
 	if(bias == 1):
@@ -706,13 +715,13 @@ def compute_entropy_for_current_node():
 	pseudo_complement_target_interval = pseudo_complement_targets[-1 * temp_bucket_number]
 	pseudo_overlapped_target_interval = pseudo_overlapped_targets[-1 * temp_bucket_number]
 
-	print 'various intervals for pseudo target in computation of entropy for target'
-	print 'pseudo_target_interval'
-	print pseudo_target_interval
-	print 'pseudo_complement_target_interval'
-	print pseudo_complement_target_interval
-	print 'pseudo_overlapped_target_interval'
-	print pseudo_overlapped_target_interval
+	# print 'various intervals for pseudo target in computation of entropy for target'
+	# print 'pseudo_target_interval'
+	# print pseudo_target_interval
+	# print 'pseudo_complement_target_interval'
+	# print pseudo_complement_target_interval
+	# print 'pseudo_overlapped_target_interval'
+	# print pseudo_overlapped_target_interval
 
 	# print 'computing mean for target',-1 * temp_bucket_number
 	mean_target = compute_mean_two_interval(end_match,pseudo_target_interval)
@@ -742,21 +751,30 @@ def compute_entropy_for_current_node():
 #IMP_POINT TO NOTE : The function gives the sum of error of predicate p and negation p
 # so you can directly find the gain. 
 def find_error_for_predicate(predicate,bucket_number):
+	
+	print 'finding error for ',predicate[2]
 	#interval = find_Interval(predicate)
 	#finding intervals
+
 	temp_minimum_bucket_value = min(bucket_number,initial_minimum_bucket_value)
 	predicate_interval = find_Interval(predicate)
 	complement_predicate_interval = complement_interval(predicate_interval)
 
+	end_match_predicate_interval = compute_forward_influence_list(predicate_interval,bucket_number)
+	end_match_complement_predicate_interval = compute_forward_influence_list(complement_predicate_interval,bucket_number)
+
+
 	# computing entropy
-	entropy_predicate_true = compute_entropy(predicate_interval,temp_minimum_bucket_value)
-	entropy_predicate_false = compute_entropy(complement_predicate_interval,temp_minimum_bucket_value)
+	print 'computing entropy for predicate',predicate[2], 'being true'
+	entropy_predicate_true = compute_entropy(end_match_predicate_interval,temp_minimum_bucket_value)
+	print 'computing entropy for predicate',predicate[2], 'being false'
+	entropy_predicate_false = compute_entropy(end_match_complement_predicate_interval,temp_minimum_bucket_value)
 	print 'entropys are'
 	print entropy_predicate_true,entropy_predicate_false
 
 	# computing probabilty i.e the weight of entropy	
-	predicate_true_length = compute_interval_length(predicate_interval)
-	predicate_false_length = compute_interval_length(complement_predicate_interval)
+	predicate_true_length = compute_interval_length(end_match_predicate_interval)
+	predicate_false_length = compute_interval_length(end_match_complement_predicate_interval)
 	predicate_total_length = predicate_true_length + predicate_false_length
 	probalility_predicate_true = predicate_true_length / predicate_total_length
 	probability_predicate_false = predicate_false_length / predicate_total_length
@@ -837,7 +855,7 @@ def print_m_best_predicates():
 	fileptr = open('best_predicates.txt','w')
 	fileptr.truncate()
 
-	print 'index \t gain \t\t predicate \t\t bucket_number \t left branch info \t right branch info',
+	print 'index \t gain \t\t predicate \t\t bucket_number \n',
 	for i in range(0,len(m_best_predicates)):
 		fileptr.write("begin_pred\n")
 		fileptr.write(str(m_best_predicates[i][1][2]) + '\n' )
@@ -845,8 +863,16 @@ def print_m_best_predicates():
 		fileptr.write('bucket = ' +  str(m_best_predicates[i][2]) + '\n')
 		fileptr.write('intervals = ' + m_best_predicates_interval[i])
 		fileptr.write('end_pred\n\n')
-		print i+1,'\t',m_best_predicates[i][0],'\t',m_best_predicates[i][1][2],m_best_predicates[i][2]
+		print i+1,'\t',m_best_predicates[i][0],'\t',m_best_predicates[i][1][2],'\t',m_best_predicates[i][2]
 	fileptr.close()
+
+def cannot_lean_need_to_exit():
+	print 'Since the error is 0 we cannot learn anything here'
+	fileptr = open('best_predicates.txt','w')
+	fileptr.truncate()
+	fileptr.close()
+	sys.exit()
+
 	
 # this fnction returns the best value of predicate we can get for a given operator op..
 # with constant between min and max value of that variable
@@ -962,6 +988,8 @@ def sa():
 	best_bucket_number = -1
 	curr_error = compute_entropy_for_current_node()
 	print 'current Error for node is ',curr_error
+	if (curr_error == 0):
+		cannot_lean_need_to_exit()
 	#for every signal variable check best predicate that could be generated.
 	for signal_variable_name in processed_signal_variable:
 		# print 'value of i is',if
